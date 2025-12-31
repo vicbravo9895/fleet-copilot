@@ -92,7 +92,7 @@ export default function Dashboard() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
 
-            <div className="flex h-full flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-6">
+            <div className="flex h-full flex-1 flex-col gap-4 sm:gap-6 p-4 pb-safe sm:p-6">
                 {/* Header */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>

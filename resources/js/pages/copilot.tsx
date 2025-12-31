@@ -428,8 +428,8 @@ export default function Copilot() {
                     )}
                 </div>
 
-                {/* Input - fijo en la parte inferior */}
-                <div className="bg-background flex-shrink-0 border-t p-3 md:p-4">
+                {/* Input - fijo en la parte inferior con safe area para home indicator */}
+                <div className="bg-background flex-shrink-0 border-t p-3 pb-safe md:p-4">
                     <form
                         onSubmit={handleSubmit}
                         className="bg-muted/50 mx-auto flex max-w-4xl items-end gap-2 rounded-2xl border p-1.5 md:p-2"
