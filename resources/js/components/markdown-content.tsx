@@ -1,0 +1,220 @@
+import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { DashcamMediaCard } from './rich-cards/dashcam-media-card';
+import { LocationCard } from './rich-cards/location-card';
+import { SafetyEventsCard } from './rich-cards/safety-events-card';
+import { TripsCard } from './rich-cards/trips-card';
+import { VehicleStatsCard } from './rich-cards/vehicle-stats-card';
+
+interface MarkdownContentProps {
+    content: string;
+    className?: string;
+}
+
+// Regex to detect special blocks: :::type {json} ::: or :::type\n{json}\n:::
+// Flexible format: allows spaces, newlines, and common typos
+const RICH_BLOCK_REGEX = /:::(location|vehicleStats|dashcamMedia|dashamMedia|safetyEvents|trips)[\s\n]+(\{[\s\S]*?\})[\s\n]*:::/g;
+
+// Map typos to correct types
+const TYPE_CORRECTIONS: Record<string, string> = {
+    dashamMedia: 'dashcamMedia',
+};
+
+type RichBlockType = 'location' | 'vehicleStats' | 'dashcamMedia' | 'safetyEvents' | 'trips';
+
+interface RichBlock {
+    type: RichBlockType;
+    data: any;
+}
+
+interface ContentPart {
+    type: 'markdown' | 'richBlock';
+    content?: string;
+    block?: RichBlock;
+}
+
+function parseContent(content: string): ContentPart[] {
+    const parts: ContentPart[] = [];
+    let lastIndex = 0;
+    let match;
+
+    // Reset regex
+    RICH_BLOCK_REGEX.lastIndex = 0;
+
+    while ((match = RICH_BLOCK_REGEX.exec(content)) !== null) {
+        // Add markdown before this block
+        if (match.index > lastIndex) {
+            parts.push({
+                type: 'markdown',
+                content: content.slice(lastIndex, match.index),
+            });
+        }
+
+        // Parse the JSON block
+        try {
+            const jsonData = JSON.parse(match[2]);
+            // Apply type corrections for common typos
+            const rawType = match[1];
+            const correctedType = (TYPE_CORRECTIONS[rawType] || rawType) as RichBlockType;
+            
+            parts.push({
+                type: 'richBlock',
+                block: {
+                    type: correctedType,
+                    data: jsonData,
+                },
+            });
+        } catch {
+            // If JSON parsing fails, treat as markdown
+            parts.push({
+                type: 'markdown',
+                content: match[0],
+            });
+        }
+
+        lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining markdown
+    if (lastIndex < content.length) {
+        parts.push({
+            type: 'markdown',
+            content: content.slice(lastIndex),
+        });
+    }
+
+    return parts;
+}
+
+function RichBlockRenderer({ block }: { block: RichBlock }) {
+    switch (block.type) {
+        case 'location':
+            return <LocationCard data={block.data} />;
+        case 'vehicleStats':
+            return <VehicleStatsCard data={block.data} />;
+        case 'dashcamMedia':
+            return <DashcamMediaCard data={block.data} />;
+        case 'safetyEvents':
+            return <SafetyEventsCard data={block.data} />;
+        case 'trips':
+            return <TripsCard data={block.data} />;
+        default:
+            return null;
+    }
+}
+
+function MarkdownRenderer({ content }: { content: string }) {
+    return (
+        <Markdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+                // Encabezados
+                h1: ({ children }) => (
+                    <h1 className="mb-3 mt-4 text-lg font-bold first:mt-0">{children}</h1>
+                ),
+                h2: ({ children }) => (
+                    <h2 className="mb-2 mt-3 text-base font-semibold first:mt-0">{children}</h2>
+                ),
+                h3: ({ children }) => (
+                    <h3 className="mb-2 mt-2 text-sm font-semibold first:mt-0">{children}</h3>
+                ),
+
+                // Párrafos
+                p: ({ children }) => (
+                    <p className="mb-2 leading-relaxed last:mb-0">{children}</p>
+                ),
+
+                // Listas
+                ul: ({ children }) => (
+                    <ul className="mb-2 ml-4 list-disc space-y-1 last:mb-0">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                    <ol className="mb-2 ml-4 list-decimal space-y-1 last:mb-0">{children}</ol>
+                ),
+                li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+
+                // Código inline
+                code: ({ children, className }) => {
+                    const isBlock = className?.includes('language-');
+                    if (isBlock) {
+                        return <code className={cn('block', className)}>{children}</code>;
+                    }
+                    return (
+                        <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
+                            {children}
+                        </code>
+                    );
+                },
+
+                // Bloques de código
+                pre: ({ children }) => (
+                    <pre className="bg-muted/80 my-2 overflow-x-auto rounded-lg p-3 font-mono text-xs">
+                        {children}
+                    </pre>
+                ),
+
+                // Links
+                a: ({ href, children }) => (
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                    >
+                        {children}
+                    </a>
+                ),
+
+                // Negrita y cursiva
+                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                em: ({ children }) => <em className="italic">{children}</em>,
+
+                // Blockquotes
+                blockquote: ({ children }) => (
+                    <blockquote className="border-primary/30 bg-muted/30 my-2 border-l-4 py-1 pl-4 italic">
+                        {children}
+                    </blockquote>
+                ),
+
+                // Separadores
+                hr: () => <hr className="border-border my-4" />,
+
+                // Tablas (GFM)
+                table: ({ children }) => (
+                    <div className="my-2 overflow-x-auto">
+                        <table className="border-border min-w-full border-collapse text-sm">
+                            {children}
+                        </table>
+                    </div>
+                ),
+                thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+                tbody: ({ children }) => <tbody>{children}</tbody>,
+                tr: ({ children }) => <tr className="border-border border-b">{children}</tr>,
+                th: ({ children }) => (
+                    <th className="px-3 py-2 text-left font-semibold">{children}</th>
+                ),
+                td: ({ children }) => <td className="px-3 py-2">{children}</td>,
+            }}
+        >
+            {content}
+        </Markdown>
+    );
+}
+
+export function MarkdownContent({ content, className }: MarkdownContentProps) {
+    const parts = useMemo(() => parseContent(content), [content]);
+
+    return (
+        <div className={cn('prose prose-sm dark:prose-invert max-w-none min-w-0 overflow-hidden break-words', className)}>
+            {parts.map((part, index) => {
+                if (part.type === 'richBlock' && part.block) {
+                    return <RichBlockRenderer key={index} block={part.block} />;
+                }
+
+                return <MarkdownRenderer key={index} content={part.content || ''} />;
+            })}
+        </div>
+    );
+}
