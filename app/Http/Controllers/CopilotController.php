@@ -97,14 +97,26 @@ class CopilotController extends Controller
         $model = config('services.openai.standard_model');
 
         return new StreamedResponse(function () use ($message, $threadId, $isNewConversation, $userId, $model) {
+            // Deshabilitar output buffering para streaming
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            
+            // Función helper para flush seguro
+            $safeFlush = function () {
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            };
+            
             // Enviar evento inicial con thread_id
             echo "data: " . json_encode([
                 'type' => 'start',
                 'thread_id' => $threadId,
                 'is_new_conversation' => $isNewConversation,
             ]) . "\n\n";
-            ob_flush();
-            flush();
+            $safeFlush();
             
             // Observer para tracking de tokens
             $tokenObserver = new TokenTrackingObserver(
@@ -136,8 +148,7 @@ class CopilotController extends Controller
                             'label' => $toolDescription['label'],
                             'icon' => $toolDescription['icon'],
                         ]) . "\n\n";
-                        ob_flush();
-                        flush();
+                        $safeFlush();
                     }
                     continue;
                 }
@@ -147,8 +158,7 @@ class CopilotController extends Controller
                     echo "data: " . json_encode([
                         'type' => 'tool_end',
                     ]) . "\n\n";
-                    ob_flush();
-                    flush();
+                    $safeFlush();
                     continue;
                 }
                 
@@ -162,8 +172,7 @@ class CopilotController extends Controller
                     'type' => 'chunk',
                     'content' => $chunk,
                 ]) . "\n\n";
-                ob_flush();
-                flush();
+                $safeFlush();
             }
             
             // Obtener estadísticas de tokens
@@ -175,8 +184,7 @@ class CopilotController extends Controller
                 'thread_id' => $threadId,
                 'tokens' => $tokenStats,
             ]) . "\n\n";
-            ob_flush();
-            flush();
+            $safeFlush();
             
         }, 200, [
             'Content-Type' => 'text/event-stream',
