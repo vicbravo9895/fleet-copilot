@@ -14,7 +14,7 @@ const STATIC_ASSETS = [
   '/offline.html',
   '/favicon.ico',
   '/favicon.svg',
-  '/logo.svg',
+  '/logo.png',
   '/apple-touch-icon.png',
   '/manifest.webmanifest',
 ];

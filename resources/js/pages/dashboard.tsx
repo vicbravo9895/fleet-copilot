@@ -92,18 +92,18 @@ export default function Dashboard() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
 
-            <div className="flex h-full flex-1 flex-col gap-6 p-6">
+            <div className="flex h-full flex-1 flex-col gap-4 sm:gap-6 p-4 sm:p-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-                        <p className="text-muted-foreground">
+                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Dashboard</h1>
+                        <p className="text-muted-foreground text-sm sm:text-base">
                             Resumen de tu actividad con el Copilot
                         </p>
                     </div>
                     <Link
                         href={copilotIndex.url()}
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors w-full sm:w-auto"
                     >
                         <Sparkles className="size-4" />
                         Nuevo chat
@@ -113,38 +113,38 @@ export default function Dashboard() {
                 {/* Token Stats */}
                 {tokenStats.total > 0 && (
                     <Card className="border-none bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-rose-500/10">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="flex size-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20">
-                                        <Coins className="size-6 text-amber-600" />
+                        <CardContent className="p-4 sm:p-6">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="flex size-10 sm:size-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+                                        <Coins className="size-5 sm:size-6 text-amber-600" />
                                     </div>
                                     <div>
-                                        <p className="text-muted-foreground text-sm font-medium">Uso de Tokens</p>
-                                        <p className="text-3xl font-bold">{formatNumber(tokenStats.total)}</p>
+                                        <p className="text-muted-foreground text-xs sm:text-sm font-medium">Uso de Tokens</p>
+                                        <p className="text-2xl sm:text-3xl font-bold">{formatNumber(tokenStats.total)}</p>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-6 text-center">
+                                <div className="grid grid-cols-3 gap-3 sm:gap-6 text-center">
                                     <div>
                                         <p className="text-muted-foreground text-xs">Hoy</p>
-                                        <p className="text-lg font-semibold">{formatNumber(tokenStats.today)}</p>
+                                        <p className="text-base sm:text-lg font-semibold">{formatNumber(tokenStats.today)}</p>
                                     </div>
                                     <div>
-                                        <p className="text-muted-foreground text-xs">Esta semana</p>
-                                        <p className="text-lg font-semibold">{formatNumber(tokenStats.thisWeek)}</p>
+                                        <p className="text-muted-foreground text-xs">Semana</p>
+                                        <p className="text-base sm:text-lg font-semibold">{formatNumber(tokenStats.thisWeek)}</p>
                                     </div>
                                     <div>
-                                        <p className="text-muted-foreground text-xs">Este mes</p>
-                                        <p className="text-lg font-semibold">{formatNumber(tokenStats.thisMonth)}</p>
+                                        <p className="text-muted-foreground text-xs">Mes</p>
+                                        <p className="text-base sm:text-lg font-semibold">{formatNumber(tokenStats.thisMonth)}</p>
                                     </div>
                                 </div>
                             </div>
-                            <div className="mt-4 flex items-center gap-4">
-                                <div className="flex items-center gap-2 text-sm">
+                            <div className="mt-3 sm:mt-4 flex items-center gap-3 sm:gap-4">
+                                <div className="flex items-center gap-2 text-xs sm:text-sm">
                                     <div className="size-2 rounded-full bg-blue-500"></div>
                                     <span className="text-muted-foreground">Input: {formatNumber(tokenStats.inputTokens)}</span>
                                 </div>
-                                <div className="flex items-center gap-2 text-sm">
+                                <div className="flex items-center gap-2 text-xs sm:text-sm">
                                     <div className="size-2 rounded-full bg-green-500"></div>
                                     <span className="text-muted-foreground">Output: {formatNumber(tokenStats.outputTokens)}</span>
                                 </div>
@@ -154,66 +154,66 @@ export default function Dashboard() {
                 )}
 
                 {/* Stats Grid */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                     <Card className="border-none bg-gradient-to-br from-violet-500/10 to-purple-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">
-                                Total Conversaciones
+                        <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6 pb-1 sm:pb-2">
+                            <CardTitle className="text-xs sm:text-sm font-medium">
+                                Conversaciones
                             </CardTitle>
-                            <MessagesSquare className="text-muted-foreground size-4" />
+                            <MessagesSquare className="text-muted-foreground size-3.5 sm:size-4" />
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold">
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="text-2xl sm:text-3xl font-bold">
                                 {stats.totalConversations}
                             </div>
-                            <p className="text-muted-foreground text-xs">
+                            <p className="text-muted-foreground text-[10px] sm:text-xs">
                                 +{stats.conversationsToday} hoy
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card className="border-none bg-gradient-to-br from-blue-500/10 to-cyan-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">
-                                Total Mensajes
+                        <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6 pb-1 sm:pb-2">
+                            <CardTitle className="text-xs sm:text-sm font-medium">
+                                Mensajes
                             </CardTitle>
-                            <MessageCircle className="text-muted-foreground size-4" />
+                            <MessageCircle className="text-muted-foreground size-3.5 sm:size-4" />
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold">{stats.totalMessages}</div>
-                            <p className="text-muted-foreground text-xs">
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="text-2xl sm:text-3xl font-bold">{stats.totalMessages}</div>
+                            <p className="text-muted-foreground text-[10px] sm:text-xs">
                                 +{stats.messagesToday} hoy
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card className="border-none bg-gradient-to-br from-emerald-500/10 to-green-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">
+                        <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6 pb-1 sm:pb-2">
+                            <CardTitle className="text-xs sm:text-sm font-medium">
                                 Tus Mensajes
                             </CardTitle>
-                            <User className="text-muted-foreground size-4" />
+                            <User className="text-muted-foreground size-3.5 sm:size-4" />
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold">{stats.userMessages}</div>
-                            <p className="text-muted-foreground text-xs">
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="text-2xl sm:text-3xl font-bold">{stats.userMessages}</div>
+                            <p className="text-muted-foreground text-[10px] sm:text-xs">
                                 Preguntas realizadas
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card className="border-none bg-gradient-to-br from-amber-500/10 to-orange-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium">
-                                Respuestas Copilot
+                        <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-6 pb-1 sm:pb-2">
+                            <CardTitle className="text-xs sm:text-sm font-medium">
+                                Respuestas
                             </CardTitle>
-                            <Bot className="text-muted-foreground size-4" />
+                            <Bot className="text-muted-foreground size-3.5 sm:size-4" />
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold">
+                        <CardContent className="p-3 sm:p-6 pt-0">
+                            <div className="text-2xl sm:text-3xl font-bold">
                                 {stats.assistantMessages}
                             </div>
-                            <p className="text-muted-foreground text-xs">
+                            <p className="text-muted-foreground text-[10px] sm:text-xs">
                                 Respuestas generadas
                             </p>
                         </CardContent>
@@ -221,7 +221,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Charts Grid */}
-                <div className="grid gap-6 lg:grid-cols-3">
+                <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {/* Activity Chart */}
                     <Card>
                         <CardHeader>
@@ -366,13 +366,13 @@ export default function Dashboard() {
 
                 {/* Quick Tips */}
                 <Card className="bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5">
-                    <CardContent className="flex items-center gap-4 p-6">
-                        <div className="bg-primary/10 flex size-12 flex-shrink-0 items-center justify-center rounded-full">
-                            <Sparkles className="text-primary size-6" />
+                    <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 sm:p-6">
+                        <div className="bg-primary/10 flex size-10 sm:size-12 flex-shrink-0 items-center justify-center rounded-full">
+                            <Sparkles className="text-primary size-5 sm:size-6" />
                         </div>
                         <div className="flex-1">
-                            <h3 className="font-semibold">Consejo del día</h3>
-                            <p className="text-muted-foreground text-sm">
+                            <h3 className="font-semibold text-sm sm:text-base">Consejo del día</h3>
+                            <p className="text-muted-foreground text-xs sm:text-sm">
                                 Puedes hacer preguntas específicas sobre tu flota para obtener
                                 respuestas más precisas. Por ejemplo: "¿Cuáles vehículos tienen
                                 más de 50,000 km recorridos?"
@@ -380,7 +380,7 @@ export default function Dashboard() {
                         </div>
                         <Link
                             href={copilotIndex.url()}
-                            className="bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors w-full sm:w-auto text-center"
                         >
                             Probar ahora
                         </Link>

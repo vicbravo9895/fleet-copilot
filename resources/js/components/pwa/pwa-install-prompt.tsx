@@ -66,7 +66,7 @@ export function PWAInstallPrompt() {
 
                 <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg">
-                        <img src="/logo.svg" alt="Fleet Copilot" className="h-7 w-7" />
+                        <img src="/logo.png" alt="Fleet Copilot" className="h-7 w-7" />
                     </div>
 
                     <div className="min-w-0 flex-1 pr-6">
