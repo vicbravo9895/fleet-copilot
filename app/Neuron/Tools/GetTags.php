@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Neuron\Tools;
 
 use App\Models\Tag;
-use App\Samsara\Client\SamsaraClient;
+use App\Neuron\Tools\Concerns\UsesCompanyContext;
 use Illuminate\Support\Facades\Cache;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
@@ -13,8 +13,10 @@ use NeuronAI\Tools\ToolProperty;
 
 class GetTags extends Tool
 {
+    use UsesCompanyContext;
+
     /**
-     * Cache key for last sync timestamp.
+     * Cache key for last sync timestamp (will be prefixed with company).
      */
     private const CACHE_KEY_LAST_SYNC = 'tags_last_sync';
 
@@ -76,6 +78,14 @@ class GetTags extends Tool
         bool $with_vehicles = false
     ): string {
         try {
+            // Get company context for multi-tenant isolation
+            $companyId = $this->getCompanyId();
+
+            // Check if company has Samsara access
+            if (!$this->hasSamsaraAccess()) {
+                return $this->noSamsaraAccessResponse();
+            }
+
             // Check if we need to sync from API
             $shouldSync = $force_sync || $this->shouldSyncFromApi();
 
@@ -83,8 +93,8 @@ class GetTags extends Tool
                 $syncResult = $this->syncTagsFromApi();
             }
 
-            // Fetch tags from database
-            $query = Tag::query();
+            // Fetch tags from database - FILTERED BY COMPANY
+            $query = Tag::forCompany($companyId);
 
             if ($search) {
                 $searchTerm = '%' . $search . '%';
@@ -184,12 +194,17 @@ class GetTags extends Tool
      */
     protected function getTagSummary(): array
     {
-        $totalTags = Tag::count();
-        $rootTags = Tag::whereNull('parent_tag_id')->orWhere('parent_tag_id', '')->count();
-        $tagsWithVehicles = Tag::whereNotNull('vehicles')
+        $companyId = $this->getCompanyId();
+        $query = Tag::forCompany($companyId);
+        
+        $totalTags = (clone $query)->count();
+        $rootTags = (clone $query)->where(function($q) {
+            $q->whereNull('parent_tag_id')->orWhere('parent_tag_id', '');
+        })->count();
+        $tagsWithVehicles = (clone $query)->whereNotNull('vehicles')
             ->whereRaw("json_array_length(vehicles::json) > 0")
             ->count();
-        $tagsWithDrivers = Tag::whereNotNull('drivers')
+        $tagsWithDrivers = (clone $query)->whereNotNull('drivers')
             ->whereRaw("json_array_length(drivers::json) > 0")
             ->count();
 
@@ -207,7 +222,8 @@ class GetTags extends Tool
      */
     protected function shouldSyncFromApi(): bool
     {
-        $lastSync = Cache::get(self::CACHE_KEY_LAST_SYNC);
+        $cacheKey = $this->companyCacheKey(self::CACHE_KEY_LAST_SYNC);
+        $lastSync = Cache::get($cacheKey);
 
         if (!$lastSync) {
             return true;
@@ -221,7 +237,8 @@ class GetTags extends Tool
      */
     protected function getLastSyncTime(): string
     {
-        $lastSync = Cache::get(self::CACHE_KEY_LAST_SYNC);
+        $cacheKey = $this->companyCacheKey(self::CACHE_KEY_LAST_SYNC);
+        $lastSync = Cache::get($cacheKey);
 
         if (!$lastSync) {
             return 'nunca';
@@ -235,7 +252,8 @@ class GetTags extends Tool
      */
     protected function syncTagsFromApi(): string
     {
-        $client = new SamsaraClient();
+        $companyId = $this->getCompanyId();
+        $client = $this->createSamsaraClient();
         $tags = $client->getTags();
 
         $created = 0;
@@ -243,16 +261,18 @@ class GetTags extends Tool
         $unchanged = 0;
 
         foreach ($tags as $tagData) {
-            $existingTag = Tag::where('samsara_id', $tagData['id'])->first();
+            $existingTag = Tag::forCompany($companyId)
+                ->where('samsara_id', $tagData['id'])
+                ->first();
             $dataHash = Tag::generateDataHash($tagData);
 
             if (!$existingTag) {
-                // New tag
-                Tag::syncFromSamsara($tagData);
+                // New tag - associate with company
+                Tag::syncFromSamsara($tagData, $companyId);
                 $created++;
             } elseif ($existingTag->data_hash !== $dataHash) {
                 // Tag changed
-                Tag::syncFromSamsara($tagData);
+                Tag::syncFromSamsara($tagData, $companyId);
                 $updated++;
             } else {
                 // No changes
@@ -260,8 +280,9 @@ class GetTags extends Tool
             }
         }
 
-        // Update last sync timestamp
-        Cache::put(self::CACHE_KEY_LAST_SYNC, time());
+        // Update last sync timestamp (company-specific)
+        $cacheKey = $this->companyCacheKey(self::CACHE_KEY_LAST_SYNC);
+        Cache::put($cacheKey, time());
 
         return "Sincronización completada: {$created} creados, {$updated} actualizados, {$unchanged} sin cambios.";
     }

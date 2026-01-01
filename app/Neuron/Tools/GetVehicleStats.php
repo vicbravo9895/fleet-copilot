@@ -6,7 +6,7 @@ namespace App\Neuron\Tools;
 
 use App\Models\Vehicle;
 use App\Neuron\Tools\Concerns\FlexibleVehicleSearch;
-use App\Samsara\Client\SamsaraClient;
+use App\Neuron\Tools\Concerns\UsesCompanyContext;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -14,6 +14,7 @@ use NeuronAI\Tools\ToolProperty;
 class GetVehicleStats extends Tool
 {
     use FlexibleVehicleSearch;
+    use UsesCompanyContext;
     /**
      * Human-readable descriptions for stat types.
      */
@@ -75,6 +76,11 @@ class GetVehicleStats extends Tool
         bool $include_vehicle_info = true
     ): string {
         try {
+            // Check if company has Samsara access
+            if (!$this->hasSamsaraAccess()) {
+                return $this->noSamsaraAccessResponse();
+            }
+
             $vehicleIds = [];
 
             // Resolve vehicle IDs from names if provided (using flexible search)
@@ -95,10 +101,12 @@ class GetVehicleStats extends Tool
                 }
             }
 
-            // Add directly provided IDs
+            // Add directly provided IDs (validate they belong to this company)
             if ($vehicle_ids) {
                 $ids = array_map('trim', explode(',', $vehicle_ids));
-                $vehicleIds = array_merge($vehicleIds, $ids);
+                // Validate vehicle IDs belong to this company
+                $validIds = $this->validateVehicleIds($ids);
+                $vehicleIds = array_merge($vehicleIds, $validIds);
             }
 
             // Parse stat types (limit to 3 as per Samsara API)
@@ -106,10 +114,10 @@ class GetVehicleStats extends Tool
             if ($stat_types) {
                 $types = array_map('trim', explode(',', $stat_types));
                 // Validate types
-                $validTypes = SamsaraClient::STAT_TYPES;
+                $validTypes = \App\Samsara\Client\SamsaraClient::STAT_TYPES;
                 $types = array_filter($types, fn($type) => in_array($type, $validTypes));
                 // Limit to max 3 types per API requirement
-                $types = array_slice(array_values($types), 0, SamsaraClient::MAX_TYPES_PER_REQUEST);
+                $types = array_slice(array_values($types), 0, \App\Samsara\Client\SamsaraClient::MAX_TYPES_PER_REQUEST);
             }
 
             // Default types if none provided (most commonly used)
@@ -117,8 +125,8 @@ class GetVehicleStats extends Tool
                 $types = ['gps', 'engineStates', 'fuelPercents'];
             }
 
-            // Fetch stats from API using the feed endpoint
-            $client = new SamsaraClient();
+            // Fetch stats from API using company-specific client
+            $client = $this->createSamsaraClient();
             $response = $client->getVehicleStats($vehicleIds, $types);
 
             // Process and format the response
@@ -189,9 +197,10 @@ class GetVehicleStats extends Tool
                 'name' => $vehicleName,
             ];
 
-            // Add vehicle info from database if requested
+            // Add vehicle info from database if requested - FILTERED BY COMPANY
             if ($includeVehicleInfo) {
-                $dbVehicle = Vehicle::where('samsara_id', $vehicleId)->first();
+                $companyId = $this->getCompanyId();
+                $dbVehicle = Vehicle::forCompany($companyId)->where('samsara_id', $vehicleId)->first();
                 if ($dbVehicle) {
                     $formattedVehicle['make'] = $dbVehicle->make;
                     $formattedVehicle['model'] = $dbVehicle->model;
@@ -372,6 +381,22 @@ class GetVehicleStats extends Tool
     public static function getAvailableStatTypes(): array
     {
         return self::STAT_DESCRIPTIONS;
+    }
+
+    /**
+     * Validate that vehicle IDs belong to this company.
+     * 
+     * @param array $ids Array of samsara_id values to validate
+     * @return array Array of valid samsara_ids that belong to this company
+     */
+    protected function validateVehicleIds(array $ids): array
+    {
+        $companyId = $this->getCompanyId();
+        
+        return Vehicle::forCompany($companyId)
+            ->whereIn('samsara_id', $ids)
+            ->pluck('samsara_id')
+            ->toArray();
     }
 }
 

@@ -12,6 +12,7 @@ class Tag extends Model
     use HasFactory;
 
     protected $fillable = [
+        'company_id',
         'samsara_id',
         'name',
         'parent_tag_id',
@@ -39,11 +40,27 @@ class Tag extends Model
     }
 
     /**
+     * Get the company that owns this tag.
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    /**
      * Get the parent tag.
      */
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Tag::class, 'parent_tag_id', 'samsara_id');
+    }
+
+    /**
+     * Scope a query to only include tags for a specific company.
+     */
+    public function scopeForCompany($query, int $companyId)
+    {
+        return $query->where('company_id', $companyId);
     }
 
     /**
@@ -75,12 +92,20 @@ class Tag extends Model
 
     /**
      * Create or update a tag from Samsara API data.
+     * 
+     * @param array $samsaraData The tag data from Samsara API
+     * @param int|null $companyId The company ID to associate with this tag
      */
-    public static function syncFromSamsara(array $samsaraData): self
+    public static function syncFromSamsara(array $samsaraData, ?int $companyId = null): self
     {
         $dataHash = self::generateDataHash($samsaraData);
         
-        $tag = self::where('samsara_id', $samsaraData['id'])->first();
+        // When syncing with company, we need to match both samsara_id and company_id
+        $query = self::where('samsara_id', $samsaraData['id']);
+        if ($companyId !== null) {
+            $query->where('company_id', $companyId);
+        }
+        $tag = $query->first();
         
         // If tag exists and hash hasn't changed, skip update
         if ($tag && $tag->data_hash === $dataHash) {
@@ -90,10 +115,17 @@ class Tag extends Model
         $mappedData = self::mapSamsaraData($samsaraData);
         $mappedData['data_hash'] = $dataHash;
         
-        return self::updateOrCreate(
-            ['samsara_id' => $samsaraData['id']],
-            $mappedData
-        );
+        if ($companyId !== null) {
+            $mappedData['company_id'] = $companyId;
+        }
+        
+        // Use both samsara_id and company_id for uniqueness
+        $uniqueAttributes = ['samsara_id' => $samsaraData['id']];
+        if ($companyId !== null) {
+            $uniqueAttributes['company_id'] = $companyId;
+        }
+        
+        return self::updateOrCreate($uniqueAttributes, $mappedData);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ChatMessage;
 use App\Models\Conversation;
+use App\Neuron\CompanyContext;
 use App\Neuron\FleetAgent;
 use App\Neuron\Observers\TokenTrackingObserver;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolCallResultMessage;
 use NeuronAI\Observability\LogObserver;
+use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CopilotController extends Controller
@@ -22,7 +24,19 @@ class CopilotController extends Controller
     {
         $user = $request->user();
         
+        // Check if user has a company
+        if (!$user->company_id) {
+            return Inertia::render('copilot', [
+                'conversations' => [],
+                'currentConversation' => null,
+                'messages' => [],
+                'error' => 'No estás asociado a ninguna empresa. Contacta al administrador.',
+            ]);
+        }
+        
+        // Only show conversations for user's company
         $conversations = Conversation::where('user_id', $user->id)
+            ->where('company_id', $user->company_id)
             ->orderBy('updated_at', 'desc')
             ->get(['id', 'thread_id', 'title', 'created_at', 'updated_at']);
         
@@ -37,11 +51,20 @@ class CopilotController extends Controller
     {
         $user = $request->user();
         
+        // Check if user has a company
+        if (!$user->company_id) {
+            return redirect()->route('copilot.index');
+        }
+        
+        // Only show conversations for user's company
         $conversations = Conversation::where('user_id', $user->id)
+            ->where('company_id', $user->company_id)
             ->orderBy('updated_at', 'desc')
             ->get(['id', 'thread_id', 'title', 'created_at', 'updated_at']);
         
+        // Ensure conversation belongs to user's company
         $currentConversation = Conversation::where('user_id', $user->id)
+            ->where('company_id', $user->company_id)
             ->where('thread_id', $threadId)
             ->first();
         
@@ -61,7 +84,7 @@ class CopilotController extends Controller
         ]);
     }
 
-    public function send(Request $request): StreamedResponse
+    public function send(Request $request): StreamedResponse|JsonResponse
     {
         $request->validate([
             'message' => 'required|string|max:10000',
@@ -72,6 +95,13 @@ class CopilotController extends Controller
         $message = $request->input('message');
         $threadId = $request->input('thread_id');
         $isNewConversation = false;
+        
+        // Validate user has a company
+        if (!$user->company_id) {
+            return response()->json([
+                'error' => 'No estás asociado a ninguna empresa. Contacta al administrador.',
+            ], 403);
+        }
         
         // Si no hay thread_id, crear una nueva conversación
         if (!$threadId) {
@@ -84,19 +114,24 @@ class CopilotController extends Controller
             Conversation::create([
                 'thread_id' => $threadId,
                 'user_id' => $user->id,
+                'company_id' => $user->company_id, // Associate with company
                 'title' => $title,
             ]);
         }
         
-        // Actualizar el timestamp de la conversación
+        // Actualizar el timestamp de la conversación (only for user's company)
         Conversation::where('thread_id', $threadId)
             ->where('user_id', $user->id)
+            ->where('company_id', $user->company_id)
             ->update(['updated_at' => now()]);
         
         $userId = $user->id;
         $model = config('services.openai.standard_model');
+        
+        // Initialize company context for the request
+        CompanyContext::fromUser($user);
 
-        return new StreamedResponse(function () use ($message, $threadId, $isNewConversation, $userId, $model) {
+        return new StreamedResponse(function () use ($message, $threadId, $isNewConversation, $userId, $model, $user) {
             // Deshabilitar output buffering para streaming
             while (ob_get_level() > 0) {
                 ob_end_flush();
@@ -126,8 +161,9 @@ class CopilotController extends Controller
                 logger: Log::channel('neuron')
             );
 
-            // Crear el agente con el thread correcto
+            // Crear el agente con el thread correcto y contexto de empresa
             $agent = (new FleetAgent())
+                ->forUser($user)
                 ->withThread($threadId)
                 ->observe(new LogObserver(Log::channel('neuron')))
                 ->observe($tokenObserver);
@@ -198,7 +234,9 @@ class CopilotController extends Controller
     {
         $user = $request->user();
         
+        // Ensure conversation belongs to user's company
         $conversation = Conversation::where('user_id', $user->id)
+            ->where('company_id', $user->company_id)
             ->where('thread_id', $threadId)
             ->first();
         

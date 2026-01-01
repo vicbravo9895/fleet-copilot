@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Neuron\Tools\Concerns;
 
 use App\Models\Vehicle;
+use App\Neuron\CompanyContext;
 
 /**
  * Trait for flexible vehicle searching.
@@ -15,9 +16,26 @@ use App\Models\Vehicle;
  * - Numeric portions (e.g., "606" finds "T-606", "TR-606")
  * 
  * Also provides suggestion functionality when multiple matches are found.
+ * 
+ * IMPORTANT: All searches are filtered by the current company context
+ * to ensure data isolation between companies.
  */
 trait FlexibleVehicleSearch
 {
+    /**
+     * Get the base query filtered by company.
+     */
+    protected function getVehicleQuery()
+    {
+        $context = CompanyContext::current();
+        
+        if ($context) {
+            return Vehicle::forCompany($context->getCompanyId());
+        }
+        
+        return Vehicle::query();
+    }
+
     /**
      * Find a vehicle using flexible matching.
      * Returns exact match if found, or suggestions if multiple matches.
@@ -27,14 +45,15 @@ trait FlexibleVehicleSearch
      */
     protected function findVehicleFlexible(string $searchTerm): array
     {
-        // First try exact match
-        $exactMatch = Vehicle::where('name', $searchTerm)->first();
+        // First try exact match - FILTERED BY COMPANY
+        $exactMatch = $this->getVehicleQuery()->where('name', $searchTerm)->first();
         if ($exactMatch) {
             return ['exact' => true, 'vehicle' => $exactMatch, 'suggestions' => []];
         }
 
-        // Try LIKE match
-        $likeMatches = Vehicle::where('name', 'like', '%' . $searchTerm . '%')
+        // Try LIKE match - FILTERED BY COMPANY
+        $likeMatches = $this->getVehicleQuery()
+            ->where('name', 'like', '%' . $searchTerm . '%')
             ->orderBy('name')
             ->limit(10)
             ->get();
@@ -54,11 +73,12 @@ trait FlexibleVehicleSearch
             ];
         }
 
-        // If search contains numbers, search by those numbers
+        // If search contains numbers, search by those numbers - FILTERED BY COMPANY
         preg_match_all('/\d+/', $searchTerm, $matches);
         if (!empty($matches[0])) {
             foreach ($matches[0] as $number) {
-                $numberMatches = Vehicle::where('name', 'like', '%' . $number . '%')
+                $numberMatches = $this->getVehicleQuery()
+                    ->where('name', 'like', '%' . $number . '%')
                     ->orderBy('name')
                     ->limit(10)
                     ->get();

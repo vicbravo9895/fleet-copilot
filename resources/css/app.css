@@ -141,6 +141,34 @@
         @apply bg-background text-foreground;
     }
 
+    /* Prevent zoom on input focus in iOS - font-size must be >= 16px */
+    @media screen and (max-width: 767px) {
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        input[type="tel"],
+        input[type="url"],
+        input[type="search"],
+        textarea,
+        select {
+            font-size: 16px !important;
+        }
+    }
+
+    /* Prevent pull-to-refresh and overscroll behaviors in PWA */
+    html, body {
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Prevent text selection on UI elements for app-like feel */
+    button, a, [role="button"] {
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
     /* Prevent long URLs and text from breaking layouts */
     pre, code {
         @apply overflow-x-auto;

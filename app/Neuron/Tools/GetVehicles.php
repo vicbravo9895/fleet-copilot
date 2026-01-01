@@ -6,7 +6,7 @@ namespace App\Neuron\Tools;
 
 use App\Models\Tag;
 use App\Models\Vehicle;
-use App\Samsara\Client\SamsaraClient;
+use App\Neuron\Tools\Concerns\UsesCompanyContext;
 use Illuminate\Support\Facades\Cache;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
@@ -14,8 +14,10 @@ use NeuronAI\Tools\ToolProperty;
 
 class GetVehicles extends Tool
 {
+    use UsesCompanyContext;
+
     /**
-     * Cache key for last sync timestamp.
+     * Cache key for last sync timestamp (will be prefixed with company).
      */
     private const CACHE_KEY_LAST_SYNC = 'vehicles_last_sync';
 
@@ -84,6 +86,14 @@ class GetVehicles extends Tool
         bool $summary_only = false
     ): string {
         try {
+            // Get company context for multi-tenant isolation
+            $companyId = $this->getCompanyId();
+
+            // Check if company has Samsara access
+            if (!$this->hasSamsaraAccess()) {
+                return $this->noSamsaraAccessResponse();
+            }
+
             // Check if we need to sync from API
             $shouldSync = $force_sync || $this->shouldSyncFromApi();
 
@@ -109,8 +119,8 @@ class GetVehicles extends Tool
                 }
             }
 
-            // Fetch vehicles from database
-            $query = Vehicle::query();
+            // Fetch vehicles from database - FILTERED BY COMPANY
+            $query = Vehicle::forCompany($companyId);
 
             // Filter by tag vehicle IDs
             if ($tagVehicleIds !== null) {
@@ -204,11 +214,12 @@ class GetVehicles extends Tool
     {
         $vehicleIds = [];
         $tagInfo = [];
+        $companyId = $this->getCompanyId();
 
-        // Find tags by ID
+        // Find tags by ID - FILTERED BY COMPANY
         if ($tagIds) {
             $ids = array_map('trim', explode(',', $tagIds));
-            $tags = Tag::whereIn('samsara_id', $ids)->get();
+            $tags = Tag::forCompany($companyId)->whereIn('samsara_id', $ids)->get();
             
             foreach ($tags as $tag) {
                 $tagInfo[] = [
@@ -227,9 +238,9 @@ class GetVehicles extends Tool
             }
         }
 
-        // Find tags by name
+        // Find tags by name - FILTERED BY COMPANY
         if ($tagName) {
-            $tags = Tag::where('name', 'like', '%' . $tagName . '%')->get();
+            $tags = Tag::forCompany($companyId)->where('name', 'like', '%' . $tagName . '%')->get();
             
             foreach ($tags as $tag) {
                 $tagInfo[] = [
@@ -258,7 +269,8 @@ class GetVehicles extends Tool
      */
     protected function getVehicleSummary(?array $filterByIds = null): array
     {
-        $query = Vehicle::query();
+        $companyId = $this->getCompanyId();
+        $query = Vehicle::forCompany($companyId);
         
         if ($filterByIds !== null) {
             $query->whereIn('samsara_id', $filterByIds);
@@ -287,7 +299,8 @@ class GetVehicles extends Tool
      */
     protected function shouldSyncFromApi(): bool
     {
-        $lastSync = Cache::get(self::CACHE_KEY_LAST_SYNC);
+        $cacheKey = $this->companyCacheKey(self::CACHE_KEY_LAST_SYNC);
+        $lastSync = Cache::get($cacheKey);
 
         if (!$lastSync) {
             return true;
@@ -301,7 +314,8 @@ class GetVehicles extends Tool
      */
     protected function getLastSyncTime(): string
     {
-        $lastSync = Cache::get(self::CACHE_KEY_LAST_SYNC);
+        $cacheKey = $this->companyCacheKey(self::CACHE_KEY_LAST_SYNC);
+        $lastSync = Cache::get($cacheKey);
 
         if (!$lastSync) {
             return 'nunca';
@@ -315,7 +329,8 @@ class GetVehicles extends Tool
      */
     protected function syncVehiclesFromApi(): string
     {
-        $client = new SamsaraClient();
+        $companyId = $this->getCompanyId();
+        $client = $this->createSamsaraClient();
         $vehicles = $client->getVehicles();
 
         $created = 0;
@@ -323,16 +338,18 @@ class GetVehicles extends Tool
         $unchanged = 0;
 
         foreach ($vehicles as $vehicleData) {
-            $existingVehicle = Vehicle::where('samsara_id', $vehicleData['id'])->first();
+            $existingVehicle = Vehicle::forCompany($companyId)
+                ->where('samsara_id', $vehicleData['id'])
+                ->first();
             $dataHash = Vehicle::generateDataHash($vehicleData);
 
             if (!$existingVehicle) {
-                // New vehicle
-                Vehicle::syncFromSamsara($vehicleData);
+                // New vehicle - associate with company
+                Vehicle::syncFromSamsara($vehicleData, $companyId);
                 $created++;
             } elseif ($existingVehicle->data_hash !== $dataHash) {
                 // Vehicle changed
-                Vehicle::syncFromSamsara($vehicleData);
+                Vehicle::syncFromSamsara($vehicleData, $companyId);
                 $updated++;
             } else {
                 // No changes
@@ -340,8 +357,9 @@ class GetVehicles extends Tool
             }
         }
 
-        // Update last sync timestamp
-        Cache::put(self::CACHE_KEY_LAST_SYNC, time());
+        // Update last sync timestamp (company-specific)
+        $cacheKey = $this->companyCacheKey(self::CACHE_KEY_LAST_SYNC);
+        Cache::put($cacheKey, time());
 
         return "Sincronización completada: {$created} creados, {$updated} actualizados, {$unchanged} sin cambios.";
     }

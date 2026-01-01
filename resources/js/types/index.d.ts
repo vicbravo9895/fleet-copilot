@@ -37,6 +37,13 @@ export interface User {
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
+    role?: 'admin' | 'manager' | 'user';
+    is_active?: boolean;
+    company_id?: number | null;
+    company?: {
+        id: number;
+        name: string;
+    } | null;
     created_at: string;
     updated_at: string;
     [key: string]: unknown; // This allows for additional properties...

@@ -6,7 +6,7 @@ namespace App\Neuron\Tools;
 
 use App\Models\Vehicle;
 use App\Neuron\Tools\Concerns\FlexibleVehicleSearch;
-use App\Samsara\Client\SamsaraClient;
+use App\Neuron\Tools\Concerns\UsesCompanyContext;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use NeuronAI\Tools\PropertyType;
@@ -16,6 +16,7 @@ use NeuronAI\Tools\ToolProperty;
 class GetDashcamMedia extends Tool
 {
     use FlexibleVehicleSearch;
+    use UsesCompanyContext;
     /**
      * Storage disk for media files.
      */
@@ -83,6 +84,12 @@ class GetDashcamMedia extends Tool
         int $max_search_minutes = 60
     ): string {
         try {
+            // Check if company has Samsara access
+            if (!$this->hasSamsaraAccess()) {
+                return $this->noSamsaraAccessResponse();
+            }
+
+            $companyId = $this->getCompanyId();
             $vehicleIds = [];
             $vehicleNamesMap = []; // Map samsara_id => vehicle name for better output
 
@@ -105,15 +112,15 @@ class GetDashcamMedia extends Tool
                 }
             }
 
-            // Add directly provided IDs
+            // Add directly provided IDs (validate they belong to this company)
             if ($vehicle_ids) {
                 $ids = array_map('trim', explode(',', $vehicle_ids));
                 foreach ($ids as $id) {
                     if (!in_array($id, $vehicleIds)) {
-                        $vehicleIds[] = $id;
-                        // Try to get name from database
-                        $vehicle = Vehicle::where('samsara_id', $id)->first();
+                        // Validate vehicle belongs to this company
+                        $vehicle = Vehicle::forCompany($companyId)->where('samsara_id', $id)->first();
                         if ($vehicle) {
+                            $vehicleIds[] = $id;
                             $vehicleNamesMap[$id] = $vehicle->name;
                         }
                     }
@@ -140,8 +147,8 @@ class GetDashcamMedia extends Tool
                 288 // Max 24 hours at 5-minute increments
             );
 
-            // Fetch media from API with retry logic
-            $client = new SamsaraClient();
+            // Fetch media from API with company-specific client
+            $client = $this->createSamsaraClient();
             $response = $client->getDashcamMediaWithRetry(
                 vehicleIds: $vehicleIds,
                 inputs: $types,
@@ -198,10 +205,13 @@ class GetDashcamMedia extends Tool
             // API returns vehicleId directly, not in a nested vehicle object
             $vehicleId = $mediaItem['vehicleId'] ?? 'unknown';
             if (!isset($mediaByVehicle[$vehicleId])) {
-                // Try to get vehicle name from map or database
+                // Try to get vehicle name from map or database - FILTERED BY COMPANY
                 $vehicleName = $vehicleNamesMap[$vehicleId] ?? null;
                 if (!$vehicleName) {
-                    $vehicle = Vehicle::where('samsara_id', $vehicleId)->first();
+                    $context = \App\Neuron\CompanyContext::current();
+                    $vehicle = $context 
+                        ? Vehicle::forCompany($context->getCompanyId())->where('samsara_id', $vehicleId)->first()
+                        : null;
                     $vehicleName = $vehicle?->name ?? 'Vehículo desconocido';
                 }
                 

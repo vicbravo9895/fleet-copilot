@@ -6,7 +6,7 @@ namespace App\Neuron\Tools;
 
 use App\Models\Vehicle;
 use App\Neuron\Tools\Concerns\FlexibleVehicleSearch;
-use App\Samsara\Client\SamsaraClient;
+use App\Neuron\Tools\Concerns\UsesCompanyContext;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -14,6 +14,7 @@ use NeuronAI\Tools\ToolProperty;
 class GetSafetyEvents extends Tool
 {
     use FlexibleVehicleSearch;
+    use UsesCompanyContext;
     /**
      * Human-readable descriptions for safety event types.
      * Keys match both 'label' field and 'name' field from behaviorLabels.
@@ -129,6 +130,12 @@ class GetSafetyEvents extends Tool
         ?string $event_state = null
     ): string {
         try {
+            // Check if company has Samsara access
+            if (!$this->hasSamsaraAccess()) {
+                return $this->noSamsaraAccessResponse();
+            }
+
+            $companyId = $this->getCompanyId();
             $vehicleIds = [];
             $vehicleNamesMap = [];
 
@@ -151,10 +158,15 @@ class GetSafetyEvents extends Tool
                 }
             }
 
-            // Add directly provided IDs
+            // Add directly provided IDs (validate they belong to this company)
             if ($vehicle_ids) {
                 $ids = array_map('trim', explode(',', $vehicle_ids));
-                $vehicleIds = array_merge($vehicleIds, $ids);
+                // Validate vehicle IDs belong to this company
+                $validIds = Vehicle::forCompany($companyId)
+                    ->whereIn('samsara_id', $ids)
+                    ->pluck('samsara_id')
+                    ->toArray();
+                $vehicleIds = array_merge($vehicleIds, $validIds);
             }
 
             // Limit vehicles to 5 to avoid context overflow
@@ -171,8 +183,8 @@ class GetSafetyEvents extends Tool
                 $eventStates = array_map('trim', explode(',', $event_state));
             }
 
-            // Fetch safety events from API using the stream endpoint
-            $client = new SamsaraClient();
+            // Fetch safety events from API using company-specific client
+            $client = $this->createSamsaraClient();
             $response = $client->getRecentSafetyEventsStream(
                 $vehicleIds,
                 $minutesBefore,

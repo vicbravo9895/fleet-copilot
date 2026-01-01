@@ -6,7 +6,7 @@ namespace App\Neuron\Tools;
 
 use App\Models\Vehicle;
 use App\Neuron\Tools\Concerns\FlexibleVehicleSearch;
-use App\Samsara\Client\SamsaraClient;
+use App\Neuron\Tools\Concerns\UsesCompanyContext;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -14,6 +14,7 @@ use NeuronAI\Tools\ToolProperty;
 class GetTrips extends Tool
 {
     use FlexibleVehicleSearch;
+    use UsesCompanyContext;
     /**
      * Human-readable descriptions for trip completion statuses.
      */
@@ -77,6 +78,12 @@ class GetTrips extends Tool
         int $limit = 5
     ): string {
         try {
+            // Check if company has Samsara access
+            if (!$this->hasSamsaraAccess()) {
+                return $this->noSamsaraAccessResponse();
+            }
+
+            $companyId = $this->getCompanyId();
             $vehicleIds = [];
             $vehicleNamesMap = [];
 
@@ -99,15 +106,21 @@ class GetTrips extends Tool
                 }
             }
 
-            // Add directly provided IDs
+            // Add directly provided IDs (validate they belong to this company)
             if ($vehicle_ids) {
                 $ids = array_map('trim', explode(',', $vehicle_ids));
-                $vehicleIds = array_merge($vehicleIds, $ids);
+                // Validate vehicle IDs belong to this company
+                $validIds = Vehicle::forCompany($companyId)
+                    ->whereIn('samsara_id', $ids)
+                    ->pluck('samsara_id')
+                    ->toArray();
+                $vehicleIds = array_merge($vehicleIds, $validIds);
             }
 
             // If no IDs provided, get vehicles from database (limited to 5 to avoid context overflow)
+            // FILTERED BY COMPANY
             if (empty($vehicleIds)) {
-                $vehicles = Vehicle::limit(5)->get();
+                $vehicles = Vehicle::forCompany($companyId)->limit(5)->get();
                 foreach ($vehicles as $vehicle) {
                     $vehicleIds[] = $vehicle->samsara_id;
                     $vehicleNamesMap[$vehicle->samsara_id] = $vehicle->name;
@@ -116,7 +129,7 @@ class GetTrips extends Tool
                 if (empty($vehicleIds)) {
                     return json_encode([
                         'error' => true,
-                        'message' => 'No hay vehículos registrados en el sistema.',
+                        'message' => 'No hay vehículos registrados para esta empresa.',
                     ], JSON_UNESCAPED_UNICODE);
                 }
             }
@@ -128,8 +141,8 @@ class GetTrips extends Tool
             $hours_back = max(1, min(72, $hours_back));
             $limit = max(1, min(10, $limit));
 
-            // Fetch trips from API
-            $client = new SamsaraClient();
+            // Fetch trips from API using company-specific client
+            $client = $this->createSamsaraClient();
             $response = $client->getRecentTrips(
                 $vehicleIds,
                 $hours_back,
