@@ -3,14 +3,14 @@
  * Estrategias de caching para funcionamiento offline y rendimiento optimizado
  */
 
-const CACHE_VERSION = 'v1.0.2';
+const CACHE_VERSION = 'v1.0.3';
 const STATIC_CACHE = `fleet-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `fleet-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `fleet-api-${CACHE_VERSION}`;
 
 // Archivos esenciales para funcionamiento offline
+// NO incluir '/' ni páginas HTML dinámicas para evitar cachear tokens CSRF viejos
 const STATIC_ASSETS = [
-  '/',
   '/offline.html',
   '/favicon.ico',
   '/favicon.svg',
@@ -126,9 +126,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Network-first para navegación (páginas HTML)
+  // Network-only para navegación (páginas HTML)
+  // NO cachear HTML para evitar tokens CSRF viejos
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, DYNAMIC_CACHE));
+    event.respondWith(networkOnlyWithOfflineFallback(request));
     return;
   }
   
@@ -215,6 +216,22 @@ async function networkOnly(request) {
   } catch (error) {
     console.log('[SW] Network only failed:', error);
     return new Response('Network error', { status: 503 });
+  }
+}
+
+/**
+ * Estrategia: Network Only con fallback a offline
+ * Para navegación - no cachea HTML para evitar tokens CSRF viejos
+ */
+async function networkOnlyWithOfflineFallback(request) {
+  try {
+    return await fetch(request);
+  } catch (error) {
+    console.log('[SW] Navigation failed, showing offline page');
+    return caches.match('/offline.html') || 
+           new Response(getOfflineHTML(), {
+             headers: { 'Content-Type': 'text/html' }
+           });
   }
 }
 
