@@ -37,7 +37,7 @@ export interface User {
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
-    role?: 'admin' | 'manager' | 'user';
+    role?: 'super_admin' | 'admin' | 'manager' | 'user';
     is_active?: boolean;
     company_id?: number | null;
     company?: {

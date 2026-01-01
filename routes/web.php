@@ -4,6 +4,10 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CopilotController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
+use App\Http\Controllers\SuperAdmin\CompanyController as SuperAdminCompanyController;
+use App\Http\Controllers\SuperAdmin\UserController as SuperAdminUserController;
+use App\Http\Middleware\EnsureSuperAdmin;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -33,5 +37,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('company/samsara-key', [CompanyController::class, 'updateSamsaraKey'])->name('company.samsara-key.update');
     Route::delete('company/samsara-key', [CompanyController::class, 'removeSamsaraKey'])->name('company.samsara-key.destroy');
 });
+
+// Super Admin routes
+Route::middleware(['auth', 'verified', EnsureSuperAdmin::class])
+    ->prefix('super-admin')
+    ->name('super-admin.')
+    ->group(function () {
+        // Dashboard
+        Route::get('/', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
+        
+        // Companies management
+        Route::resource('companies', SuperAdminCompanyController::class);
+        Route::put('companies/{company}/samsara-key', [SuperAdminCompanyController::class, 'updateSamsaraKey'])
+            ->name('companies.samsara-key.update');
+        Route::delete('companies/{company}/samsara-key', [SuperAdminCompanyController::class, 'removeSamsaraKey'])
+            ->name('companies.samsara-key.destroy');
+        Route::post('companies/{company}/toggle-status', [SuperAdminCompanyController::class, 'toggleStatus'])
+            ->name('companies.toggle-status');
+        
+        // Users management
+        Route::resource('users', SuperAdminUserController::class);
+        Route::post('users/{user}/toggle-status', [SuperAdminUserController::class, 'toggleStatus'])
+            ->name('users.toggle-status');
+    });
 
 require __DIR__.'/settings.php';

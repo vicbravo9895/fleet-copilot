@@ -17,6 +17,7 @@ class User extends Authenticatable
     /**
      * User roles.
      */
+    public const ROLE_SUPER_ADMIN = 'super_admin';
     public const ROLE_ADMIN = 'admin';
     public const ROLE_MANAGER = 'manager';
     public const ROLE_USER = 'user';
@@ -71,11 +72,19 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user is an admin.
+     * Check if user is a super admin.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === self::ROLE_SUPER_ADMIN;
+    }
+
+    /**
+     * Check if user is an admin (includes super_admin).
      */
     public function isAdmin(): bool
     {
-        return $this->role === self::ROLE_ADMIN;
+        return in_array($this->role, [self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
     }
 
     /**
@@ -91,7 +100,7 @@ class User extends Authenticatable
      */
     public function canManageUsers(): bool
     {
-        return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_MANAGER]);
+        return in_array($this->role, [self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER]);
     }
 
     /**
