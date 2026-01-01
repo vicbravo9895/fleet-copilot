@@ -11,6 +11,7 @@ import { VehicleStatsCard } from './rich-cards/vehicle-stats-card';
 interface MarkdownContentProps {
     content: string;
     className?: string;
+    isStreaming?: boolean;
 }
 
 // Regex to detect special blocks: :::type {json} ::: or :::type\n{json}\n:::
@@ -203,8 +204,67 @@ function MarkdownRenderer({ content }: { content: string }) {
     );
 }
 
-export function MarkdownContent({ content, className }: MarkdownContentProps) {
+// Detectar si el contenido contiene elementos pesados (cards, tablas grandes, URLs largas)
+export function hasHeavyContent(content: string): boolean {
+    // Detectar bloques ricos (cards) - resetear regex antes de usar
+    RICH_BLOCK_REGEX.lastIndex = 0;
+    if (RICH_BLOCK_REGEX.test(content)) {
+        return true;
+    }
+
+    // Detectar tablas grandes (más de 5 filas)
+    const tableRows = content.match(/\|.*\|/g);
+    if (tableRows && tableRows.length > 5) {
+        return true;
+    }
+
+    // Detectar múltiples URLs largas
+    const urlPattern = /https?:\/\/[^\s\)]+/g;
+    const urls = content.match(urlPattern);
+    if (urls && urls.length > 2) {
+        return true;
+    }
+
+    // Detectar bloques de código grandes (más de 20 líneas)
+    const codeBlocks = content.match(/```[\s\S]*?```/g);
+    if (codeBlocks) {
+        for (const block of codeBlocks) {
+            const lines = block.split('\n').length;
+            if (lines > 20) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// Componente placeholder ligero para contenido pesado
+function HeavyContentPlaceholder() {
+    return (
+        <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3">
+            <div className="flex size-2 items-center gap-1">
+                <span className="bg-primary size-1.5 animate-pulse rounded-full [animation-delay:-0.3s]"></span>
+                <span className="bg-primary size-1.5 animate-pulse rounded-full [animation-delay:-0.15s]"></span>
+                <span className="bg-primary size-1.5 animate-pulse rounded-full"></span>
+            </div>
+            <span className="text-muted-foreground text-xs">Generando contenido...</span>
+        </div>
+    );
+}
+
+export function MarkdownContent({ content, className, isStreaming = false }: MarkdownContentProps) {
     const parts = useMemo(() => parseContent(content), [content]);
+    const hasHeavy = useMemo(() => hasHeavyContent(content), [content]);
+
+    // Si está streaming y tiene contenido pesado, mostrar placeholder
+    if (isStreaming && hasHeavy && content.length > 100) {
+        return (
+            <div className={cn('min-w-0 overflow-hidden', className)}>
+                <HeavyContentPlaceholder />
+            </div>
+        );
+    }
 
     return (
         <div className={cn('prose prose-sm dark:prose-invert max-w-none min-w-0 overflow-hidden break-words', className)}>

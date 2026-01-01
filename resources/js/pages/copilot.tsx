@@ -3,7 +3,7 @@ import {
     send,
     show,
 } from '@/actions/App/Http/Controllers/CopilotController';
-import { MarkdownContent } from '@/components/markdown-content';
+import { hasHeavyContent, MarkdownContent } from '@/components/markdown-content';
 import { Button } from '@/components/ui/button';
 import CopilotLayout from '@/layouts/copilot-layout';
 import { cn } from '@/lib/utils';
@@ -378,8 +378,10 @@ export default function Copilot() {
                                     </div>
                                     <div className="bg-muted min-w-0 flex-1 overflow-hidden rounded-2xl px-3 py-2 shadow-sm md:px-4 md:py-3">
                                         <div className="min-w-0 overflow-hidden text-sm">
-                                            <MarkdownContent content={streamingContent} />
-                                            <span className="ml-1 inline-block h-4 w-0.5 animate-pulse rounded-full bg-current" />
+                                            <MarkdownContent content={streamingContent} isStreaming={isStreaming} />
+                                            {!hasHeavyContent(streamingContent) && (
+                                                <span className="ml-1 inline-block h-4 w-0.5 animate-pulse rounded-full bg-current" />
+                                            )}
                                         </div>
                                     </div>
                                 </div>
