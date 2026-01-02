@@ -3,7 +3,7 @@
  * Estrategias de caching para funcionamiento offline y rendimiento optimizado
  */
 
-const CACHE_VERSION = 'v1.0.4';
+const CACHE_VERSION = 'v1.0.6';
 const STATIC_CACHE = `fleet-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `fleet-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `fleet-api-${CACHE_VERSION}`;
@@ -66,7 +66,7 @@ self.addEventListener('install', (event) => {
 
 /**
  * Activación del Service Worker
- * Limpia caches antiguos
+ * Limpia caches antiguos y elimina cualquier cache de /storage/
  */
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating Service Worker...');
@@ -74,17 +74,41 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
-        return Promise.all(
-          cacheNames
-            .filter((cacheName) => {
-              return cacheName.startsWith('fleet-') && 
-                     !cacheName.includes(CACHE_VERSION);
+        const deletePromises = [];
+        
+        // Eliminar caches antiguos
+        cacheNames
+          .filter((cacheName) => {
+            return cacheName.startsWith('fleet-') && 
+                   !cacheName.includes(CACHE_VERSION);
+          })
+          .forEach((cacheName) => {
+            console.log('[SW] Deleting old cache:', cacheName);
+            deletePromises.push(caches.delete(cacheName));
+          });
+        
+        // Limpiar cualquier cache de /storage/ de todos los caches
+        cacheNames.forEach((cacheName) => {
+          deletePromises.push(
+            caches.open(cacheName).then((cache) => {
+              return cache.keys().then((keys) => {
+                return Promise.all(
+                  keys
+                    .filter((request) => {
+                      const url = new URL(request.url);
+                      return url.pathname.startsWith('/storage/');
+                    })
+                    .map((request) => {
+                      console.log('[SW] Deleting cached storage file:', request.url);
+                      return cache.delete(request);
+                    })
+                );
+              });
             })
-            .map((cacheName) => {
-              console.log('[SW] Deleting old cache:', cacheName);
-              return caches.delete(cacheName);
-            })
-        );
+          );
+        });
+        
+        return Promise.all(deletePromises);
       })
       .then(() => {
         console.log('[SW] Service Worker activated');
@@ -110,10 +134,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Network-only para rutas específicas
+  // NO interceptar rutas que requieren autenticación o deben ir directo al servidor
+  // Esto permite que las cookies y credenciales se envíen correctamente
   if (NETWORK_ONLY_PATTERNS.some(pattern => pattern.test(url.pathname))) {
-    event.respondWith(networkOnly(request));
-    return;
+    // Log para depuración (solo en desarrollo)
+    if (url.pathname.startsWith('/storage/')) {
+      console.log('[SW] Bypassing /storage/ request:', url.pathname);
+    }
+    return; // Dejar que la request pase directamente sin interceptar
   }
   
   // Stale-while-revalidate para API cacheables
@@ -141,8 +169,14 @@ self.addEventListener('fetch', (event) => {
 
 /**
  * Detecta si es un asset estático
+ * Excluye /storage/ porque requiere autenticación
  */
 function isStaticAsset(pathname) {
+  // No cachear archivos en /storage/ porque requieren autenticación
+  if (pathname.startsWith('/storage/')) {
+    return false;
+  }
+  
   return /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|webp|avif)(\?.*)?$/.test(pathname) ||
          pathname.includes('/build/');
 }
