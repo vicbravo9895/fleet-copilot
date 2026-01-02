@@ -3,6 +3,7 @@
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CopilotController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\StorageController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SuperAdmin\DashboardController as SuperAdminDashboardController;
 use App\Http\Controllers\SuperAdmin\CompanyController as SuperAdminCompanyController;
@@ -36,6 +37,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('company', [CompanyController::class, 'update'])->name('company.update');
     Route::put('company/samsara-key', [CompanyController::class, 'updateSamsaraKey'])->name('company.samsara-key.update');
     Route::delete('company/samsara-key', [CompanyController::class, 'removeSamsaraKey'])->name('company.samsara-key.destroy');
+    
+    // Storage files route - serve authenticated storage files
+    Route::get('storage/{path}', [StorageController::class, 'serve'])
+        ->where('path', '.*')
+        ->name('storage.serve');
 });
 
 // Super Admin routes
