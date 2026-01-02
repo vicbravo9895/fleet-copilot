@@ -3,7 +3,7 @@
  * Estrategias de caching para funcionamiento offline y rendimiento optimizado
  */
 
-const CACHE_VERSION = 'v1.0.3';
+const CACHE_VERSION = 'v1.0.4';
 const STATIC_CACHE = `fleet-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `fleet-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `fleet-api-${CACHE_VERSION}`;
@@ -20,6 +20,7 @@ const STATIC_ASSETS = [
 ];
 
 // Rutas que siempre deben ir a la red
+// Estas rutas requieren autenticación o no deben ser cacheadas
 const NETWORK_ONLY_PATTERNS = [
   /\/api\//,
   /\/telescope/,
@@ -28,6 +29,7 @@ const NETWORK_ONLY_PATTERNS = [
   /\/logout/,
   /\/register/,
   /\/csrf-cookie/,
+  /\/storage\//,  // Archivos almacenados que requieren autenticación
   /hot$/,
 ];
 
