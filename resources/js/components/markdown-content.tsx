@@ -239,32 +239,29 @@ export function hasHeavyContent(content: string): boolean {
     return false;
 }
 
-// Componente placeholder ligero para contenido pesado
-function HeavyContentPlaceholder() {
-    return (
-        <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3">
-            <div className="flex size-2 items-center gap-1">
-                <span className="bg-primary size-1.5 animate-pulse rounded-full [animation-delay:-0.3s]"></span>
-                <span className="bg-primary size-1.5 animate-pulse rounded-full [animation-delay:-0.15s]"></span>
-                <span className="bg-primary size-1.5 animate-pulse rounded-full"></span>
+// Indicador de streaming más visible y profesional
+function StreamingIndicator({ isHeavy }: { isHeavy: boolean }) {
+    if (isHeavy) {
+        return (
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                <div className="flex items-center gap-1">
+                    <span className="bg-primary size-1.5 animate-pulse rounded-full [animation-delay:-0.3s]"></span>
+                    <span className="bg-primary size-1.5 animate-pulse rounded-full [animation-delay:-0.15s]"></span>
+                    <span className="bg-primary size-1.5 animate-pulse rounded-full"></span>
+                </div>
+                <span className="text-primary text-xs font-medium">Generando contenido...</span>
             </div>
-            <span className="text-muted-foreground text-xs">Generando contenido...</span>
-        </div>
+        );
+    }
+    
+    return (
+        <span className="ml-1 inline-block h-4 w-0.5 animate-pulse rounded-full bg-primary align-middle" />
     );
 }
 
 export function MarkdownContent({ content, className, isStreaming = false }: MarkdownContentProps) {
     const parts = useMemo(() => parseContent(content), [content]);
     const hasHeavy = useMemo(() => hasHeavyContent(content), [content]);
-
-    // Si está streaming y tiene contenido pesado, mostrar placeholder
-    if (isStreaming && hasHeavy && content.length > 100) {
-        return (
-            <div className={cn('min-w-0 overflow-hidden', className)}>
-                <HeavyContentPlaceholder />
-            </div>
-        );
-    }
 
     return (
         <div className={cn('prose prose-sm dark:prose-invert max-w-none min-w-0 overflow-hidden break-words', className)}>
@@ -275,6 +272,7 @@ export function MarkdownContent({ content, className, isStreaming = false }: Mar
 
                 return <MarkdownRenderer key={index} content={part.content || ''} />;
             })}
+            {isStreaming && <StreamingIndicator isHeavy={hasHeavy && content.length > 100} />}
         </div>
     );
 }
